@@ -1,0 +1,15 @@
+node_modules/
+dist/
+releases/
+.env
+.env.*
+!.env.example
+config.local.json
+auth-code*
+*.backup-*
+/config.json
+/state/
+credentials*
+*.log
+.DS_Store
+coverage/

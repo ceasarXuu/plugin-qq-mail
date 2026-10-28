@@ -1,0 +1,8 @@
+{
+  "provider": "custom",
+  "email": "you@example.com",
+  "auth": { "user": "you@example.com", "passwordEnv": "MAIL_AUTH_CODE" },
+  "imap": { "host": "imap.example.com", "port": 993, "security": "tls" },
+  "smtp": { "host": "smtp.example.com", "port": 587, "security": "starttls" },
+  "folders": { "drafts": "Drafts", "sent": "Sent", "trash": "Trash", "archive": "Archive", "junk": "Junk" }
+}

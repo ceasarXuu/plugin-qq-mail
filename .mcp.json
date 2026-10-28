@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "qq-mail": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/mail-server.cjs"]
+    }
+  }
+}

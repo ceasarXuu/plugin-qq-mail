@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "qq-mail",
+  "version": "0.1.0",
+  "description": "本地通用邮箱插件，预置 QQ 邮箱，支持标准 IMAP/SMTP 邮箱。",
+  "keywords": ["email", "qq-mail", "imap", "smtp", "mcp"],
+  "extensions": {
+    "com.openai": {
+      "requires_local_executor": true,
+      "interface": {
+        "displayName": "通用邮箱",
+        "shortDescription": "配置 QQ 邮箱，查收与管理邮件",
+        "longDescription": "通过本机运行的 MCP 服务连接 QQ 或自定义 IMAP/SMTP 邮箱，提供搜索、读信、附件、草稿、发送、回复、转发、文件夹、已读与星标、归档和移入垃圾箱。邮箱授权码仅由本机读取。",
+        "category": "Productivity",
+        "capabilities": [],
+        "defaultPrompt": "检查我的邮箱配置，并帮我处理邮件。"
+      }
+    }
+  }
+}

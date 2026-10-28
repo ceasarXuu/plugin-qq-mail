@@ -1,0 +1,6 @@
+{
+  "name": "qq-mail",
+  "version": "0.1.0",
+  "description": "本地通用邮箱插件，配置 QQ 或标准 IMAP/SMTP 邮箱，支持查收、附件、草稿、发送及可恢复的邮件管理。",
+  "mcpServers": "./.mcp.json"
+}

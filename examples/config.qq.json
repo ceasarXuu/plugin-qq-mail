@@ -1,0 +1,5 @@
+{
+  "provider": "qq",
+  "email": "your-address@qq.com",
+  "auth": { "passwordEnv": "QQ_MAIL_AUTH_CODE" }
+}

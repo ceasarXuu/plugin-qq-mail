@@ -1,0 +1,31 @@
+{
+  "name": "plugin-qq-mail",
+  "version": "0.1.0",
+  "private": true,
+  "description": "本地通用邮箱 MCP 插件，预置 QQ 邮箱并通过 IMAP/SMTP 工作。",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "tsc --noEmit",
+    "test": "npm run build && node --import tsx --test tests/*.test.ts",
+    "start": "node dist/mail-server.cjs",
+    "configure": "node dist/mail-cli.cjs configure",
+    "package": "node scripts/package.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "imapflow": "2.9.1",
+    "mailparser": "3.12.4",
+    "nodemailer": "10.2.1",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^22.19.0",
+    "@types/nodemailer": "^7.0.4",
+    "esbuild": "^0.25.11",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

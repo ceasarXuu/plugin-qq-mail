@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "qq-mail": {
+      "command": "node",
+      "args": ["/absolute/path/to/qq-mail/dist/mail-server.cjs"],
+      "env": { "MAIL_CONFIG_PATH": "/absolute/path/to/config.json" }
+    }
+  }
+}

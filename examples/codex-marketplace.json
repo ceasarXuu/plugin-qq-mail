@@ -1,0 +1,12 @@
+{
+  "name": "qq-mail-local",
+  "interface": { "displayName": "本地邮箱插件" },
+  "plugins": [
+    {
+      "name": "qq-mail",
+      "source": { "source": "local", "path": "./" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Productivity"
+    }
+  ]
+}
