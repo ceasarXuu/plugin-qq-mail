@@ -9,10 +9,12 @@ description: 需要配置 QQ 或标准 IMAP/SMTP 邮箱、搜索和阅读邮件�
 
 ## 配置
 
-1. 先调用 `get_profile` 检查本机配置。配置缺失时，引导用户在终端运行插件目录下的 `node dist/mail-cli.cjs configure`。
+1. 先调用 `list_accounts` 查看已配置邮箱；`get_profile` 可查看指定邮箱配置。配置缺失时，引导用户在终端运行插件目录下的 `node dist/mail-cli.cjs configure`。
 2. QQ 邮箱需要先在网页端设置中开启 IMAP/SMTP，再生成授权码。不要索取 QQ 登录密码。
 3. 不要求用户在聊天中发送授权码，不把授权码写入工具参数、项目文件、日志或提交。
 4. 配置后用 `check_connection` 检查认证；它不会发送测试邮件。
+5. 多个 QQ 邮箱共用一个服务实例。附加邮箱按 README 在同一服务器添加 `MAIL_ACCOUNT_2_EMAIL` 和 `MAIL_ACCOUNT_2_AUTH_CODE`；禁止收集或回显授权码。
+6. 处理指定邮箱时，每次调用均以 `account` 传入其邮箱地址，包含搜索、读取、草稿和管理；省略时使用默认邮箱。跨邮箱搜索需逐个账号执行，不能混用邮件 ID 或分页标记。多账号时，如用户未指明发信或修改目标，先确认目标邮箱；已有明确账号范围的定时任务按原范围执行。
 
 ## 查询与阅读
 

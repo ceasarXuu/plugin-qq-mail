@@ -6,6 +6,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createMailServer } from '../src/server.js';
 import { config, FakeImap, sample, tempDir } from './fixtures.js';
+import { MailError } from '../src/errors.js';
 
 async function call<T>(client: Client, name: string, args: Record<string, unknown> = {}): Promise<T> {
   const result = await client.callTool({ name, arguments: args });
@@ -57,8 +58,59 @@ test('standalone bundled stdio server initializes and returns a redacted unconfi
   t.after(() => client.close());
   await client.connect(transport);
   const tools = await client.listTools();
-  assert.equal(tools.tools.length, 21);
+  assert.equal(tools.tools.length, 22);
   const profile = await call<{ configured: boolean; configuration_error: { code: string } }>(client, 'get_profile');
   assert.equal(profile.configured, false);
   assert.equal(profile.configuration_error.code, 'CONFIG_MISSING');
+});
+
+test('MCP routes each operation to the requested account and rejects cross-account message IDs', async t => {
+  const directory = await tempDir(t);
+  const first = config(directory);
+  const second = { ...config(directory), email: 'second@qq.com', accountId: 'abcdefabcdefabcdefabcdef' };
+  const boxes = [new FakeImap(), new FakeImap()];
+  await boxes[0]!.add('INBOX', sample);
+  await boxes[1]!.add('INBOX', sample);
+  const service = {
+    accounts: async () => ({ accounts: [{ email_address: first.email, default: true }, { email_address: second.email, default: false }] }),
+    profile: async () => ({}), verify: async () => ({}),
+    run: async <T>(operation: Parameters<ReturnType<FakeImap['service']>['run']>[0], account?: string): Promise<T> => {
+      const index = !account || account === first.email ? 0 : account === second.email ? 1 : -1;
+      if (index < 0) throw new MailError('ACCOUNT_NOT_FOUND', 'Unknown account');
+      return await operation(boxes[index]!.asClient(), [first, second][index]!) as T;
+    },
+  };
+  const server = createMailServer(service);
+  const client = new Client({ name: 'multi-account-test', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  t.after(async () => { await client.close(); await server.close(); });
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  const firstSearch = await call<{ emails: { id: string }[] }>(client, 'search_emails', { folder: 'INBOX' });
+  const secondSearch = await call<{ emails: { id: string }[] }>(client, 'search_emails', { folder: 'INBOX', account: second.email });
+  assert.notEqual(firstSearch.emails[0]!.id, secondSearch.emails[0]!.id);
+  const wrong = await client.callTool({ name: 'batch_modify_email', arguments: { account: first.email, message_ids: [secondSearch.emails[0]!.id], read: true } });
+  assert.equal(wrong.isError, true);
+  assert(!boxes[0]!.calls.some(item => item.method === 'flags'));
+  const marked = await call<{ complete: boolean }>(client, 'batch_modify_email', { account: second.email, message_ids: [secondSearch.emails[0]!.id], read: true });
+  assert(marked.complete);
+  assert(boxes[1]!.calls.some(item => item.method === 'flags'));
+});
+
+test('bundled server lists and selects multiple environment-configured QQ accounts without exposing credentials', { timeout: 15000 }, async t => {
+  const directory = await tempDir(t);
+  const transport = new StdioClientTransport({
+    command: process.execPath, args: [path.resolve('dist/mail-server.cjs')], stderr: 'pipe',
+    env: { HOME: directory, MAIL_EMAIL: 'first@qq.com', MAIL_AUTH_CODE: 'first-secret', MAIL_ACCOUNT_2_EMAIL: 'second@qq.com', MAIL_ACCOUNT_2_AUTH_CODE: 'second-secret' },
+  });
+  const client = new Client({ name: 'multi-stdio-test', version: '1.0.0' });
+  t.after(() => client.close());
+  await client.connect(transport);
+  const accounts = await call<{ accounts: { email_address: string; default: boolean }[] }>(client, 'list_accounts');
+  assert.deepEqual(accounts.accounts.map(item => item.email_address), ['first@qq.com', 'second@qq.com']);
+  assert.equal(accounts.accounts[0]!.default, true);
+  const profile = await call<{ configured: boolean; email_address: string }>(client, 'get_profile', { account: 'second@qq.com' });
+  assert.equal(profile.configured, true);
+  assert.equal(profile.email_address, 'second@qq.com');
+  assert(!JSON.stringify([accounts, profile]).includes('secret'));
 });

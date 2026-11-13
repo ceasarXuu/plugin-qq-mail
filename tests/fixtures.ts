@@ -131,6 +131,7 @@ export class FakeImap {
   }
   service(configuration: MailConfig): MailService {
     return {
+      accounts: async () => ({ accounts: [{ email_address: configuration.email, default: true, credential_configured: true }] }),
       profile: async () => ({ configured: true, email_address: configuration.email }),
       verify: async () => ({ connected: true, email_sent: false }),
       run: operation => operation(this.asClient(), configuration),

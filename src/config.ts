@@ -45,8 +45,29 @@ export function defaultConfigPath(env: NodeJS.ProcessEnv = process.env): string 
   return path.join(env.XDG_CONFIG_HOME || path.join(homedir(), '.config'), 'qq-mail', 'config.json');
 }
 
-export async function loadConfig(env: NodeJS.ProcessEnv = process.env): Promise<MailConfig> {
+export interface NamedAccount { email: string; secretKey: string; credentialConfigured: boolean }
+
+export function namedAccounts(env: NodeJS.ProcessEnv = process.env): NamedAccount[] {
+  const accounts: NamedAccount[] = [];
+  for (const [key, email] of Object.entries(env)) {
+    const match = /^MAIL_ACCOUNT_([A-Z0-9]+(?:_[A-Z0-9]+)*)_EMAIL$/u.exec(key);
+    if (!match) continue;
+    if (!email || !z.email().safeParse(email).success) {
+      throw new MailError('CONFIG_INVALID', `${key} 不是有效的邮箱地址。`);
+    }
+    const secretKey = `MAIL_ACCOUNT_${match[1]}_AUTH_CODE`;
+    if (accounts.some(account => account.email.toLowerCase() === email.toLowerCase())) {
+      throw new MailError('CONFIG_INVALID', '多个邮箱配置使用了相同地址，请删除重复配置。');
+    }
+    accounts.push({ email, secretKey, credentialConfigured: Boolean(env[secretKey]) });
+  }
+  return accounts;
+}
+
+export async function loadConfig(env: NodeJS.ProcessEnv = process.env, account?: string): Promise<MailConfig> {
   const configPath = path.resolve(env.MAIL_CONFIG_PATH || defaultConfigPath(env));
+  const named = namedAccounts(env);
+  const selected = account && named.find(item => item.email.toLowerCase() === account.toLowerCase());
   let input: Record<string, unknown> = {};
   try {
     const raw: unknown = JSON.parse(await readFile(configPath, 'utf8'));
@@ -58,14 +79,22 @@ export async function loadConfig(env: NodeJS.ProcessEnv = process.env): Promise<
     }
     if (env.MAIL_CONFIG_PATH) throw new MailError('CONFIG_MISSING', 'MAIL_CONFIG_PATH 指向的配置文件不存在。');
   }
-  if (env.MAIL_EMAIL) input.email = env.MAIL_EMAIL;
+  const primaryEmail = env.MAIL_EMAIL || (typeof input.email === 'string' ? input.email : undefined);
+  if (primaryEmail && named.some(item => item.email.toLowerCase() === primaryEmail.toLowerCase())) {
+    throw new MailError('CONFIG_INVALID', '附加邮箱地址与默认邮箱重复，请删除重复配置。');
+  }
+  if (selected) input = { email: selected.email };
+  else if (env.MAIL_EMAIL) input.email = env.MAIL_EMAIL;
   const parsed = configSchema.safeParse(input);
   if (!parsed.success) throw new MailError('CONFIG_INVALID', '邮箱配置无效。请运行配置向导，或检查邮箱地址及服务器配置。');
   const settings = parsed.data;
+  if (account && settings.email.toLowerCase() !== account.toLowerCase()) {
+    throw new MailError('ACCOUNT_NOT_FOUND', '未找到指定邮箱，请先调用 list_accounts 查看可用账号。');
+  }
   if (settings.provider === 'custom' && (!settings.imap || !settings.smtp)) {
     throw new MailError('CONFIG_INVALID', '自定义邮箱必须提供 IMAP 和 SMTP 服务器配置。');
   }
-  let pass = env.MAIL_AUTH_CODE || env[settings.auth.passwordEnv || 'QQ_MAIL_AUTH_CODE'];
+  let pass = selected ? env[selected.secretKey] : env.MAIL_AUTH_CODE || env[settings.auth.passwordEnv || 'QQ_MAIL_AUTH_CODE'];
   if (!pass && settings.auth.passwordFile) {
     const secretPath = path.resolve(path.dirname(configPath), settings.auth.passwordFile);
     try {
@@ -81,7 +110,7 @@ export async function loadConfig(env: NodeJS.ProcessEnv = process.env): Promise<
     }
   }
   if (!pass || /[\r\n\0]/u.test(pass)) {
-    throw new MailError('SECRET_MISSING', '未找到邮箱授权码。请运行配置向导，或设置 MAIL_AUTH_CODE 环境变量。');
+    throw new MailError('SECRET_MISSING', selected ? `未找到 ${selected.secretKey}，请为该邮箱配置独立授权码。` : '未找到邮箱授权码。请运行配置向导，或设置 MAIL_AUTH_CODE 环境变量。');
   }
   const imap = settings.imap || { host: 'imap.qq.com', port: 993, security: 'tls' as const };
   const smtp = settings.smtp || { host: 'smtp.qq.com', port: 465, security: 'tls' as const };

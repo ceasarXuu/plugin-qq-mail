@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { chmod, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import { loadConfig } from '../src/config.js';
+import { loadConfig, namedAccounts } from '../src/config.js';
 import { compileMail, mailOptions, decodeAttachment } from '../src/compose.js';
 import { messageId, parseMessageId } from '../src/ids.js';
 import { parseQuery } from '../src/query.js';
@@ -28,6 +28,27 @@ test('QQ preset loads credentials locally and rejects world-readable secret file
   await writeFile(filename, 'null');
   await assert.rejects(loadConfig({ MAIL_CONFIG_PATH: filename }), { code: 'CONFIG_INVALID' });
   assert(!JSON.stringify(publicError(new Error('password=abcdefghijklmnop'))).includes('abcdefghijklmnop'));
+});
+
+test('multiple accounts keep credentials and identity isolated from the default account', async t => {
+  const directory = await tempDir(t);
+  const filename = path.join(directory, 'config.json');
+  await writeFile(filename, JSON.stringify({ email: 'old@example.test', provider: 'custom', imap: { host: 'old.invalid', port: 993 }, smtp: { host: 'old.invalid', port: 465 } }));
+  const env = { MAIL_CONFIG_PATH: filename, MAIL_EMAIL: 'first@qq.com', MAIL_AUTH_CODE: 'first-secret', MAIL_ACCOUNT_2_EMAIL: 'second@qq.com', MAIL_ACCOUNT_2_AUTH_CODE: 'second-secret' };
+  const first = await loadConfig(env);
+  const second = await loadConfig(env, 'SECOND@qq.com');
+  assert.equal(first.email, 'first@qq.com');
+  assert.equal(first.auth.pass, 'first-secret');
+  assert.equal(second.email, 'second@qq.com');
+  assert.equal(second.auth.pass, 'second-secret');
+  assert.equal(second.imap.host, 'imap.qq.com');
+  assert.notEqual(first.accountId, second.accountId);
+  assert(!JSON.stringify(namedAccounts(env)).includes('second-secret'));
+  const missing = { ...env, MAIL_ACCOUNT_2_AUTH_CODE: '' };
+  await assert.rejects(loadConfig(missing, 'second@qq.com'), { code: 'SECRET_MISSING' });
+  await assert.rejects(loadConfig(env, 'unknown@qq.com'), { code: 'ACCOUNT_NOT_FOUND' });
+  await assert.rejects(loadConfig({ ...env, MAIL_ACCOUNT_2_EMAIL: 'first@qq.com' }), { code: 'CONFIG_INVALID' });
+  await assert.rejects(loadConfig({ ...env, MAIL_ACCOUNT_3_EMAIL: 'SECOND@qq.com' }), { code: 'CONFIG_INVALID' });
 });
 
 test('mail IDs reject wrong accounts and arbitrary ranges', () => {
